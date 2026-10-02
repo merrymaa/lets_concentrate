@@ -1,9 +1,8 @@
-from backend.app.db.repository_impl import RepositoryImpl
-from database.database import init_db
+from database.repository import Repository
 
 class Container:
     def __init__(self):
+        self.repository = Repository()
 
-        self.repository = RepositoryImpl()
 
 container = Container()

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import HTMLResponse
-from app.schemas.user_register import UserRegister
+from schemas.user_register import UserRegister
+from di.container import container
 
 router = APIRouter()
 
@@ -14,13 +15,18 @@ def start_page():
 def register(user_data: UserRegister):
     email = user_data.email
     password = user_data.password
+    try:
+        success = container.repository.register_user(email, password)
 
-    print(f"=== email: {email}, password: {password} ")
+        if success:
+            return {"message": f"{email} was successful registered"}, 201
+        else:
+            return {"error": "Login exists"}, 409
 
+    except Exception as e:
+        return {"error": f"Internal server error during registration - {e}"}, 500
 
-
-    return {"message": f"Пользователь c плчтой {email} зарегистрирован"}
-
+   
 
 
 

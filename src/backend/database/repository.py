@@ -4,7 +4,7 @@ from datetime import datetime
 from database.database import User, SessionLocal
 
 
-class Resository():
+class Repository():
     def __init__(self, session_factory=SessionLocal):
         self.session_factory = session_factory
 
@@ -27,3 +27,6 @@ class Resository():
             raise
         finally:
             session_db.close()
+
+
+

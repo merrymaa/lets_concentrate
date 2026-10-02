@@ -2,11 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database.database import init_db
 
-from app.api.routes import router
+from api.routes import router
 
 app = FastAPI(title="Concentrator")
 
-# @app.on_event("startup") 
 async def connect_to_db():
     print("Пытаюсь подключиться к базе данных...")
     try:
@@ -27,3 +26,4 @@ app.add_middleware(
 
 app.include_router(router)
 
+# http://localhost:8000/
