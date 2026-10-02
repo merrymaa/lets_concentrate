@@ -13,19 +13,11 @@ def start_page():
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister):
-    email = user_data.email
-    password = user_data.password
-    try:
-        success = container.repository.register_user(email, password)
-
-        if success:
-            return {"message": f"{email} was successful registered"}, 201
-        else:
-            return {"error": "Login exists"}, 409
-
-    except Exception as e:
-        return {"error": f"Internal server error during registration - {e}"}, 500
-
+    success = container.auth_service.register_user(user_data.email, user_data.password)
+    if success: 
+        return {"message": f"{user_data.email} was successful registered"} 
+    else: 
+        return {"error": "Login exists"}, status.HTTP_409_CONFLICT
    
 
 
