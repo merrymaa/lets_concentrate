@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse
-from schemas.user_register import UserRegister
+from sqlalchemy.orm import Session
+from api.dependencies import get_db 
 from di.container import container
+from schemas.user_register import UserRegister
+from schemas.statistics import StatisticsCreate
+from database.repository_impl import RepositoryImpl
 
 router = APIRouter()
 
@@ -20,6 +24,27 @@ def register(user_data: UserRegister):
         return {"error": "Login exists"}, status.HTTP_409_CONFLICT
    
 
+# Зависимость для получения репозитория
+def get_repository(session: Session = Depends(get_db)):
+    return RepositoryImpl(session_factory=lambda: session)
 
+@router.post("/add", status_code=status.HTTP_201_CREATED)
+def add_statistics(
+    stats: StatisticsCreate, 
+    repository = Depends(get_repository)
+):
+    """
+    Принимает данные о сессии от фронтенда и сохраняет их в БД.
+    """
+    stats_dict = stats.model_dump()
+    
+    success = repository.add_statistics_record(stats_dict)
 
+    if success:
+        return {"message": "Statistics record saved successfully"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save statistics record"
+        )
 
