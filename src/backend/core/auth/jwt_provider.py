@@ -4,7 +4,7 @@ from typing import Optional
 
 from jose import jwt, JWTError
 
-class JWTProvider:
+class JwtProvider:
     def __init__(
         self,
         secret_key_access: str,
@@ -24,7 +24,7 @@ class JWTProvider:
         to_encode = {"sub": user_uuid}
         
         # Устанавливаем время жизни токена
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.datetime() + expires_delta
         to_encode.update({"exp": expire})
         
         return jwt.encode(to_encode, key, algorithm=self.algorithm)

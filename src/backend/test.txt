@@ -2,6 +2,16 @@
 curl -X POST http://localhost:8000/register \
 -H "Content-Type: application/json" \
   -d '{
-  "email": "test1@mail.ru",
+  "email": "test3@mail.ru",
   "password": "pa3453454"
+}'
+
+curl -X POST "http://127.0.0.1:8000/add" \
+-H "Content-Type: application/json" \
+-d '{
+  "user": "550e8400-e29b-41d4-a716-446655440000",
+  "session_date": "2025-10-04T12:00:00Z",
+  "type_timer": "focus",
+  "focus_time_sec": 1500,
+  "count_distraction": 2
 }'
