@@ -1,4 +1,10 @@
 import { useState, useEffect } from "react";
+import { Routes, Route, Link } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import AppLayout from "./components/AppLayout.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
+import RegisterPage from "./pages/RegisterPage.jsx";
 function Hexagon() {
   return (
     <svg width="200" height="200" viewBox="0 0 200 200">
@@ -381,7 +387,7 @@ function PatternMandala() {
   );
 }
 
-function App() {
+function TimerPage() {
   // объекты для концентрации
   const objects = [
     { id: "hexagon", label: "Шестиугольник", component: <Hexagon /> },
@@ -496,6 +502,37 @@ function App() {
         <button onClick={() => setCount(0)}>Сброс</button>
       </div>
     </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <div style={{ textAlign: "center", padding: "40px" }}>
+      <h1>404</h1>
+      <p>
+        Страница не найдена. <Link to="/">На главную</Link>
+      </p>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Публичные маршруты */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        {/* Защищённые: guard + layout с шапкой (на /login и /register не рендерится) */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<TimerPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }
 
