@@ -2,11 +2,22 @@ from sqlalchemy import create_engine, String, DateTime, Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, sessionmaker
 from sqlalchemy.orm import mapped_column
 from datetime import datetime
+import os
 
 # pas = "123456789"
 
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/concentrate"
-engine = create_engine(DATABASE_URL, echo=True, client_encoding='utf8')
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/concentrate",
+)
+
+# client_encoding поддерживается только драйверами PostgreSQL.
+# Для других БД (например, sqlite в тестах) не передаём этот параметр.
+_engine_kwargs = {"echo": True}
+if DATABASE_URL.startswith("postgresql"):
+    _engine_kwargs["client_encoding"] = "utf8"
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 
 
 class Base(DeclarativeBase):

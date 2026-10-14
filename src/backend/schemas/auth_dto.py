@@ -12,5 +12,5 @@ class JwtResponse(BaseModel):
     refreshToken: str
 
 
-class RefreshJwtRequest:
+class RefreshJwtRequest(BaseModel):
     refreshToken: str
