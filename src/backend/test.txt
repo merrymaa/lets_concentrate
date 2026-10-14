@@ -2,7 +2,7 @@
 curl -X POST http://localhost:8000/register \
 -H "Content-Type: application/json" \
   -d '{
-  "email": "test3@mail.ru",
+  "email": "test4@mail.ru",
   "password": "pa3453454"
 }'
 
