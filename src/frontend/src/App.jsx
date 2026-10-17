@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { saveSession } from "./services/statsApi.js";
+import "./App.css";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppLayout from "./components/AppLayout.jsx";
@@ -413,6 +415,15 @@ function TimerPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
+  // сессия концентрации: время старта (ISO), последняя сохранённая/несохранённая сессия,
+  // статус сохранения и inline-сообщения
+  const [startedAt, setStartedAt] = useState(null);
+  const [lastResult, setLastResult] = useState(null); // snapshot метрик завершённой сессии
+  const [lastUnsavedSession, setLastUnsavedSession] = useState(null); // не потеряна при ошибке сети
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null); // { kind: 'success' | 'error', text }
+  const [showResults, setShowResults] = useState(false);
+
   useEffect(() => {
     let interval = null;
     if (isRunning) {
@@ -424,12 +435,34 @@ function TimerPage() {
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  const startTimer = () => setIsRunning(true);
+  // «Старт» — существующее поведение сохранено: запускает отсчёт.
+  // Добавлено: фиксируем startedAtIso, чистим lastResult, предупреждаем о несохранённой сессии.
+  const startTimer = () => {
+    if (lastUnsavedSession) {
+      const ok = window.confirm(
+        "Есть несохранённая сессия. Начать новую?"
+      );
+      if (!ok) return;
+      setLastUnsavedSession(null);
+      setSaveMessage(null);
+    }
+    setStartedAt(new Date().toISOString());
+    setLastResult(null);
+    setShowResults(false);
+    setIsRunning(true);
+  };
   const stopTimer = () => setIsRunning(false);
   const resetTimer = () => {
     setSeconds(0);
     setIsRunning(false);
   };
+
+  // авто-скрытие успешного сообщения через 4 секунды
+  useEffect(() => {
+    if (saveMessage?.kind !== "success") return;
+    const t = setTimeout(() => setSaveMessage(null), 4000);
+    return () => clearTimeout(t);
+  }, [saveMessage]);
 
   const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -438,6 +471,101 @@ function TimerPage() {
 
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
+
+  // мм:сс для метрик (часы добавляем только если они есть)
+  const formatMmSs = (totalSeconds) => {
+    const s = Math.max(0, Math.round(totalSeconds));
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    const h = Math.floor(s / 3600);
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  };
+
+  // Метрики считаются на фронте из текущих значений (или snapshot'а)
+  const buildMetrics = (t, n) => ({
+    durationSec: t,
+    distractions: n,
+    efficiencyPerMin: t > 0 ? (n / t) * 60 : 0, // N/T, отвлечений в минуту
+    avgTimeToDistractionSec: t, // T/(N+1) или T при N=0 — см. ниже
+  });
+
+  const currentMetrics = () => {
+    const t = lastResult ? lastResult.durationSec : seconds;
+    const n = lastResult ? lastResult.distractions : count;
+    return buildMetrics(t, n);
+  };
+
+  // сессия активна: таймер идёт или есть накопленное время (объявлено до обработчиков)
+  const sessionActive = isRunning || seconds > 0;
+
+  // Сохранение (или повтор) последней завершённой несохранённой сессии
+  const finishSession = async () => {
+    // если есть несохранённый snapshot — это «Повторить сохранение»
+    if (lastUnsavedSession && !sessionActive) {
+      await persistSession(lastUnsavedSession);
+      return;
+    }
+
+    // обычное «Закончить сессию»
+    if (seconds === 0) {
+      // пустая сессия (T=0) — не сохраняем, понятное inline-сообщение
+      setSaveMessage({ kind: "error", text: "Сессия пустая, сохранять нечего" });
+      return;
+    }
+
+    setIsRunning(false);
+
+    const snapshot = {
+      focusTimeSec: seconds,
+      distractions: count,
+      startedAtIso: startedAt ?? new Date().toISOString(),
+    };
+
+    // snapshot метрик для кнопки «Результаты» (остаётся до следующего «Старт»)
+    setLastResult(buildMetrics(snapshot.focusTimeSec, snapshot.distractions));
+    setShowResults(true);
+    setLastUnsavedSession(snapshot);
+
+    await persistSession(snapshot);
+  };
+
+  const persistSession = async (snapshot) => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      await saveSession(snapshot);
+      setLastUnsavedSession(null);
+      // сброс локального стейта сессии: следующий «Старт» начнёт с нуля
+      setSeconds(0);
+      setCount(0);
+      setStartedAt(null);
+      setSaveMessage({
+        kind: "success",
+        text: `Сессия сохранена: ${formatMmSs(snapshot.focusTimeSec)}, ${snapshot.distractions} ${pluralDistractions(snapshot.distractions)}`,
+      });
+    } catch (error) {
+      const status = error?.status;
+      let text = "Не удалось сохранить сессию.";
+      if (status === 401 || status === 403) text += " Сессия авторизации истекла — войдите заново.";
+      else if (status >= 500) text += " Сервер временно недоступен.";
+      else if (!status) text += " Проверьте подключение к сети.";
+      setSaveMessage({ kind: "error", text });
+      // lastUnsavedSession НЕ очищаем — данные сессии не теряются, можно повторить
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const pluralDistractions = (n) => {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return "отвлечение";
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "отвлечения";
+    return "отвлечений";
+  };
+
+  const metrics = currentMetrics();
+  const canShowResults = Boolean(lastResult) || sessionActive;
 
   return (
     <div className="App">
@@ -462,21 +590,90 @@ function TimerPage() {
           Выбрать объект
         </button>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            background: "white",
-            padding: "30px",
-            borderRadius: "20px",
-            boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-            margin: "20px auto",
-            maxWidth: "300px",
-            minHeight: "300px",
-          }}
-        >
-          {selectedObject.component}
+        {/* карточка объекта + колонка кнопок справа; переносится на узких экранах */}
+        <div className="focus-row">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              background: "white",
+              padding: "30px",
+              borderRadius: "20px",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+              margin: "20px auto",
+              maxWidth: "300px",
+              minHeight: "300px",
+            }}
+          >
+            {selectedObject.component}
+          </div>
+
+          <div className="focus-actions">
+            <button
+              className="session-btn"
+              onClick={finishSession}
+              disabled={isSaving}
+            >
+              {lastUnsavedSession && !sessionActive
+                ? "📤 Повторить сохранение"
+                : "✅ Закончить сессию"}
+            </button>
+
+            <button
+              className="session-btn session-btn-secondary"
+              onClick={() => setShowResults((v) => !v)}
+              disabled={!canShowResults}
+              title={!canShowResults ? "Сначала запустите таймер" : undefined}
+            >
+              📊 Результаты текущей сессии
+            </button>
+
+            {showResults && (lastResult || sessionActive) && (
+              <div className="session-results">
+                <h3>Результаты {lastResult ? "завершённой" : "текущей"} сессии</h3>
+                <p>
+                  Длительность:{" "}
+                  <strong>{formatMmSs(metrics.durationSec)}</strong>
+                </p>
+                <p>
+                  Отвлечения: <strong>{metrics.distractions}</strong>
+                </p>
+                <p>
+                  Индекс эффективности:{" "}
+                  <strong>
+                    {metrics.durationSec > 0
+                      ? `${metrics.efficiencyPerMin.toFixed(1)} отвл./мин`
+                      : "—"}
+                  </strong>
+                </p>
+                <p>
+                  Среднее время до отвлечения:{" "}
+                  <strong>
+                    {metrics.durationSec > 0
+                      ? metrics.distractions === 0
+                        ? `${formatMmSs(metrics.durationSec)} (без отвлечений)`
+                        : formatMmSs(
+                            metrics.durationSec / (metrics.distractions + 1)
+                          )
+                      : "—"}
+                  </strong>
+                </p>
+              </div>
+            )}
+
+            {saveMessage && (
+              <p
+                className={
+                  saveMessage.kind === "success"
+                    ? "session-msg session-msg-success"
+                    : "session-msg session-msg-error"
+                }
+              >
+                {saveMessage.text}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
