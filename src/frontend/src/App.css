@@ -182,3 +182,90 @@
     border-right-color: var(--border);
   }
 }
+
+/* ===== Экран концентрации: карточка объекта + колонка кнопок сессии ===== */
+
+.focus-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 24px;
+  /* на узких экранах колонка переносится под карточку */
+  flex-wrap: wrap;
+}
+
+.focus-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 260px;
+  max-width: 320px;
+  margin: 20px 0;
+}
+
+/* новые кнопки — в стиле .auth-submit (Auth.css), чтобы выделялись как действия */
+.session-btn {
+  font: inherit;
+  padding: 12px 20px;
+  font-size: 17px;
+  border-radius: 50px;
+  color: white;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.3s;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.session-btn-secondary {
+  background: var(--code-bg);
+  color: var(--text-h);
+  border: 1px solid var(--border);
+}
+
+.session-results {
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+
+  h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    color: var(--text-h);
+  }
+
+  strong {
+    color: var(--text-h);
+  }
+}
+
+.session-msg {
+  font-size: 15px;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.session-msg-success {
+  color: #1a7f37;
+  background: rgba(26, 127, 55, 0.08);
+}
+
+.session-msg-error {
+  color: #d33a2c;
+  background: rgba(211, 58, 44, 0.08);
+}
