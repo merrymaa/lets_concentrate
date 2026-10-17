@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import AppLayout from "./components/AppLayout.jsx";
@@ -68,15 +68,15 @@ function Octagon() {
     <svg width="200" height="200" viewBox="0 0 200 200">
       <polygon
         points="
-          100,10 
-          160,30 
-          190,70 
-          190,130 
-          160,170 
-          100,190 
-          40,170 
-          10,130 
-          10,70 
+          100,10
+          160,30
+          190,70
+          190,130
+          160,170
+          100,190
+          40,170
+          10,130
+          10,70
           40,30
         "
         fill="none"
@@ -518,8 +518,11 @@ function NotFound() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    // BrowserRouter обязателен здесь: в dev-режиме main.jsx рендерит App напрямую,
+    // а Router есть только в prod-обёртке (main-production.jsx)
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
         {/* Публичные маршруты */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -532,7 +535,8 @@ function App() {
           </Route>
         </Route>
       </Routes>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
