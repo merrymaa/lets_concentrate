@@ -414,6 +414,9 @@ function TimerPage() {
   const [count, setCount] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  // таймер по умолчанию скрыт (чтобы не отвлекать от тренировки);
+  // время продолжает считаться, клик по области времени делает его видимым
+  const [timerVisible, setTimerVisible] = useState(false);
 
   // сессия концентрации: время старта (ISO), последняя сохранённая/несохранённая сессия,
   // статус сохранения и inline-сообщения
@@ -449,13 +452,11 @@ function TimerPage() {
     setStartedAt(new Date().toISOString());
     setLastResult(null);
     setShowResults(false);
+    // новая сессия — таймер снова скрыт по умолчанию, время продолжает считаться
+    setTimerVisible(false);
     setIsRunning(true);
   };
   const stopTimer = () => setIsRunning(false);
-  const resetTimer = () => {
-    setSeconds(0);
-    setIsRunning(false);
-  };
 
   // авто-скрытие успешного сообщения через 4 секунды
   useEffect(() => {
@@ -565,7 +566,6 @@ function TimerPage() {
   };
 
   const metrics = currentMetrics();
-  const canShowResults = Boolean(lastResult) || sessionActive;
 
   return (
     <div className="App">
@@ -590,23 +590,57 @@ function TimerPage() {
           Выбрать объект
         </button>
 
-        {/* карточка объекта + колонка кнопок справа; переносится на узких экранах */}
+        {/* карточка объекта (под ним — таймер, счётчик отвлечений и Старт/Стоп)
+            + колонка результатов справа; переносится на узких экранах */}
         <div className="focus-row">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              background: "white",
-              padding: "30px",
-              borderRadius: "20px",
-              boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
-              margin: "20px auto",
-              maxWidth: "300px",
-              minHeight: "300px",
-            }}
-          >
-            {selectedObject.component}
+          <div className="focus-card">
+            <div className="focus-object">{selectedObject.component}</div>
+
+            {/* область времени: клик по ней показывает таймер (по умолчанию скрыт,
+                чтобы не отвлекать от тренировки; время при этом продолжает считаться) */}
+            <button
+              type="button"
+              className="timer-area"
+              onClick={() => setTimerVisible(true)}
+              title={timerVisible ? undefined : "Показать время"}
+              aria-label={timerVisible ? "Скрыть таймер" : "Показать время"}
+            >
+              {timerVisible ? formatTime(seconds) : "⏱ Показать время"}
+            </button>
+
+            {/* счётчик отвлечений — под таймером */}
+            <p className="distraction-counter">
+              Количество отвлечений: <strong>{count}</strong>
+            </p>
+
+            {/* одна кнопка для подсчёта отвлечений */}
+            <button
+              type="button"
+              className="session-btn distraction-btn"
+              onClick={() => setCount(count + 1)}
+            >
+              Отвлекся
+            </button>
+
+            {/* Старт / Стоп — под объектом для концентрации */}
+            <div className="timer-controls">
+              <button
+                type="button"
+                className="session-btn timer-start-btn"
+                onClick={startTimer}
+                disabled={isRunning}
+              >
+                ▶️ Старт
+              </button>
+              <button
+                type="button"
+                className="session-btn timer-stop-btn"
+                onClick={stopTimer}
+                disabled={!isRunning}
+              >
+                ⏸️ Стоп
+              </button>
+            </div>
           </div>
 
           <div className="focus-actions">
@@ -623,15 +657,15 @@ function TimerPage() {
             <button
               className="session-btn session-btn-secondary"
               onClick={() => setShowResults((v) => !v)}
-              disabled={!canShowResults}
-              title={!canShowResults ? "Сначала запустите таймер" : undefined}
+              disabled={!lastResult}
+              title={!lastResult ? "Результаты появятся после нажатия «Стоп»" : undefined}
             >
-              📊 Результаты текущей сессии
+              📊 Результаты тренировки
             </button>
 
-            {showResults && (lastResult || sessionActive) && (
+            {showResults && lastResult && (
               <div className="session-results">
-                <h3>Результаты {lastResult ? "завершённой" : "текущей"} сессии</h3>
+                <h3>Результаты тренировки</h3>
                 <p>
                   Длительность:{" "}
                   <strong>{formatMmSs(metrics.durationSec)}</strong>
@@ -675,28 +709,6 @@ function TimerPage() {
             )}
           </div>
         </div>
-      </div>
-
-      <div style={{ textAlign: "center", padding: "20px" }}>
-        <h1>⏱</h1>
-
-        <div style={{ fontSize: "48px", margin: "20px" }}>
-          {formatTime(seconds)}
-        </div>
-
-        <div>
-          <button onClick={startTimer} disabled={isRunning}>
-            ▶️ Старт
-          </button>
-          <button onClick={stopTimer} disabled={!isRunning}>
-            ⏸️ Стоп
-          </button>
-          <button onClick={resetTimer}>🔄 Сброс</button>
-        </div>
-        <p>==============</p>
-        <p> Количество отвлечений {count}</p>
-        <button onClick={() => setCount(count + 1)}>Отвлекся</button>
-        <button onClick={() => setCount(0)}>Сброс</button>
       </div>
     </div>
   );
