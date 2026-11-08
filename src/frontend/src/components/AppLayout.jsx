@@ -24,7 +24,7 @@ export default function AppLayout() {
         }}
       >
         <Link to="/" style={{ color: 'var(--text-h)', textDecoration: 'none' }}>
-          Концентратор
+          {/* Концентратор */}
         </Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span>{user?.email}</span>
