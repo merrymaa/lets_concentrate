@@ -183,19 +183,19 @@
   }
 }
 
-/* ===== Экран концентрации: карточка объекта + колонка кнопок сессии ===== */
+/* ===== Экран концентрации: карточка объекта + панель управления + результаты ===== */
 
 .focus-row {
   display: flex;
   justify-content: center;
   align-items: flex-start;
   gap: 24px;
-  /* на узких экранах колонка переносится под карточку */
+  /* на узких экранах колонки переносятся под карточку */
   flex-wrap: wrap;
 }
 
-/* карточка объекта для концентрации: сам объект, под ним — таймер,
-   счётчик отвлечений с кнопкой «Отвлекся» и кнопки Старт/Стоп */
+/* белая карточка объекта для концентрации: только сама фигура.
+   Кнопки «Показать время», «Отвлекся», Старт/Стоп — вне этой области */
 .focus-card {
   display: flex;
   flex-direction: column;
@@ -216,10 +216,20 @@
   min-height: 260px;
 }
 
-/* область времени: клик по ней показывает таймер;
-   по умолчанию время скрыто, чтобы не отвлекать от тренировки */
-.timer-area {
-  font: inherit;
+/* панель управления тренировкой — вне белой зоны объекта концентрации */
+.focus-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 260px;
+  max-width: 320px;
+  margin: 20px 0;
+}
+
+/* значение таймера — показывается только по кнопке «Показать время» */
+.timer-value {
+  margin: 0;
   font-size: 28px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 1px;
@@ -227,23 +237,13 @@
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 10px 24px;
-  margin-top: 16px;
-  cursor: pointer;
-  transition: opacity 0.3s;
-
-  &:hover {
-    opacity: 0.85;
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+  padding: 8px 16px;
+  text-align: center;
 }
 
-/* счётчик отвлечений — под таймером */
+/* счётчик отвлечений */
 .distraction-counter {
-  margin: 14px 0 6px;
+  margin: 4px 0 0;
   font-size: 17px;
   color: var(--text-h);
 }
@@ -254,11 +254,11 @@
   background: #f0a020;
 }
 
-/* Старт / Стоп — под объектом для концентрации */
+/* Старт / Стоп */
 .timer-controls {
   display: flex;
   gap: 12px;
-  margin-top: 16px;
+  margin-top: 4px;
   width: 100%;
 
   .session-btn {

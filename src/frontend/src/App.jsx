@@ -415,7 +415,7 @@ function TimerPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [seconds, setSeconds] = useState(0);
   // таймер по умолчанию скрыт (чтобы не отвлекать от тренировки);
-  // время продолжает считаться, клик по области времени делает его видимым
+  // время продолжает считаться, кнопка «Показать время» циклично показывает/скрывает его
   const [timerVisible, setTimerVisible] = useState(false);
 
   // сессия концентрации: время старта (ISO), последняя сохранённая/несохранённая сессия,
@@ -456,7 +456,40 @@ function TimerPage() {
     setTimerVisible(false);
     setIsRunning(true);
   };
-  const stopTimer = () => setIsRunning(false);
+  // «Стоп» — тренировка заканчивается: останавливаем отсчёт, считаем все индексы
+  // (snapshot метрик) и сохраняем сессию на бэкенде. Результаты показываем справа
+  // от фигуры концентрации. Отдельной кнопки «Закончить сессию» больше нет.
+  const stopTimer = async () => {
+    setIsRunning(false);
+    if (seconds === 0) return; // сессия не начиналась — считать и сохранять нечего
+
+    const snapshot = {
+      focusTimeSec: seconds,
+      distractions: count,
+      startedAtIso: startedAt ?? new Date().toISOString(),
+    };
+
+    // фиксируем результаты завершённой тренировки (до сброса счётчиков)
+    setLastResult({
+      ...snapshot,
+      durationSec: snapshot.focusTimeSec,
+      efficiencyPerMin:
+        snapshot.focusTimeSec > 0
+          ? (snapshot.distractions / snapshot.focusTimeSec) * 60
+          : 0,
+      avgTimeToDistractionSec:
+        snapshot.distractions > 0
+          ? snapshot.focusTimeSec / (snapshot.distractions + 1)
+          : snapshot.focusTimeSec,
+    });
+    setShowResults(true);
+    setLastUnsavedSession(snapshot);
+
+    await persistSession(snapshot);
+  };
+
+  // «Показать время» работает циклично: каждое нажатие либо показывает, либо скрывает таймер
+  const toggleTimerVisibility = () => setTimerVisible((v) => !v);
 
   // авто-скрытие успешного сообщения через 4 секунды
   useEffect(() => {
@@ -482,52 +515,14 @@ function TimerPage() {
     return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
   };
 
-  // Метрики считаются на фронте из текущих значений (или snapshot'а)
-  const buildMetrics = (t, n) => ({
-    durationSec: t,
-    distractions: n,
-    efficiencyPerMin: t > 0 ? (n / t) * 60 : 0, // N/T, отвлечений в минуту
-    avgTimeToDistractionSec: t, // T/(N+1) или T при N=0 — см. ниже
-  });
-
-  const currentMetrics = () => {
-    const t = lastResult ? lastResult.durationSec : seconds;
-    const n = lastResult ? lastResult.distractions : count;
-    return buildMetrics(t, n);
-  };
-
   // сессия активна: таймер идёт или есть накопленное время (объявлено до обработчиков)
   const sessionActive = isRunning || seconds > 0;
 
-  // Сохранение (или повтор) последней завершённой несохранённой сессии
-  const finishSession = async () => {
-    // если есть несохранённый snapshot — это «Повторить сохранение»
-    if (lastUnsavedSession && !sessionActive) {
-      await persistSession(lastUnsavedSession);
-      return;
-    }
-
-    // обычное «Закончить сессию»
-    if (seconds === 0) {
-      // пустая сессия (T=0) — не сохраняем, понятное inline-сообщение
-      setSaveMessage({ kind: "error", text: "Сессия пустая, сохранять нечего" });
-      return;
-    }
-
-    setIsRunning(false);
-
-    const snapshot = {
-      focusTimeSec: seconds,
-      distractions: count,
-      startedAtIso: startedAt ?? new Date().toISOString(),
-    };
-
-    // snapshot метрик для кнопки «Результаты» (остаётся до следующего «Старт»)
-    setLastResult(buildMetrics(snapshot.focusTimeSec, snapshot.distractions));
-    setShowResults(true);
-    setLastUnsavedSession(snapshot);
-
-    await persistSession(snapshot);
+  // Повтор сохранения, если «Стоп» не смог записать сессию из-за ошибки сети.
+  // Отдельной кнопки «Закончить сессию» нет — завершение делает «Стоп».
+  const retrySave = async () => {
+    if (!lastUnsavedSession) return;
+    await persistSession(lastUnsavedSession);
   };
 
   const persistSession = async (snapshot) => {
@@ -565,8 +560,6 @@ function TimerPage() {
     return "отвлечений";
   };
 
-  const metrics = currentMetrics();
-
   return (
     <div className="App">
       {/* <h1>Тренировка концентрации</h1> */}
@@ -590,30 +583,35 @@ function TimerPage() {
           Выбрать объект
         </button>
 
-        {/* карточка объекта (под ним — таймер, счётчик отвлечений и Старт/Стоп)
-            + колонка результатов справа; переносится на узких экранах */}
+        {/* строка: белая карточка с объектом концентрации + справа — результаты тренировки */}
         <div className="focus-row">
           <div className="focus-card">
             <div className="focus-object">{selectedObject.component}</div>
+          </div>
 
-            {/* область времени: клик по ней показывает таймер (по умолчанию скрыт,
-                чтобы не отвлекать от тренировки; время при этом продолжает считаться) */}
+          {/* панель управления: вне белой области объекта концентрации */}
+          <div className="focus-controls">
+            {/* «Показать время» — цикличная кнопка: каждое нажатие показывает или скрывает таймер */}
             <button
               type="button"
-              className="timer-area"
-              onClick={() => setTimerVisible(true)}
-              title={timerVisible ? undefined : "Показать время"}
-              aria-label={timerVisible ? "Скрыть таймер" : "Показать время"}
+              className="session-btn timer-toggle-btn"
+              onClick={toggleTimerVisibility}
+              aria-pressed={timerVisible}
+              aria-label={timerVisible ? "Скрыть время" : "Показать время"}
             >
-              {timerVisible ? formatTime(seconds) : "⏱ Показать время"}
+              ⏱ Показать время
             </button>
 
-            {/* счётчик отвлечений — под таймером */}
+            {/* само время — отдельно от кнопки, видимо только когда его показали */}
+            {timerVisible && (
+              <p className="timer-value">{formatTime(seconds)}</p>
+            )}
+
+            {/* счётчик отвлечений + кнопка «Отвлекся» */}
             <p className="distraction-counter">
               Количество отвлечений: <strong>{count}</strong>
             </p>
 
-            {/* одна кнопка для подсчёта отвлечений */}
             <button
               type="button"
               className="session-btn distraction-btn"
@@ -622,7 +620,7 @@ function TimerPage() {
               Отвлекся
             </button>
 
-            {/* Старт / Стоп — под объектом для концентрации */}
+            {/* Старт / Стоп — тоже вне зоны объекта концентрации */}
             <div className="timer-controls">
               <button
                 type="button"
@@ -636,64 +634,21 @@ function TimerPage() {
                 type="button"
                 className="session-btn timer-stop-btn"
                 onClick={stopTimer}
-                disabled={!isRunning}
+                disabled={!isRunning || isSaving}
               >
-                ⏸️ Стоп
+                {isSaving ? "⏳ Подсчёт…" : "⏸️ Стоп"}
               </button>
             </div>
-          </div>
 
-          <div className="focus-actions">
-            <button
-              className="session-btn"
-              onClick={finishSession}
-              disabled={isSaving}
-            >
-              {lastUnsavedSession && !sessionActive
-                ? "📤 Повторить сохранение"
-                : "✅ Закончить сессию"}
-            </button>
-
-            <button
-              className="session-btn session-btn-secondary"
-              onClick={() => setShowResults((v) => !v)}
-              disabled={!lastResult}
-              title={!lastResult ? "Результаты появятся после нажатия «Стоп»" : undefined}
-            >
-              📊 Результаты тренировки
-            </button>
-
-            {showResults && lastResult && (
-              <div className="session-results">
-                <h3>Результаты тренировки</h3>
-                <p>
-                  Длительность:{" "}
-                  <strong>{formatMmSs(metrics.durationSec)}</strong>
-                </p>
-                <p>
-                  Отвлечения: <strong>{metrics.distractions}</strong>
-                </p>
-                <p>
-                  Индекс эффективности:{" "}
-                  <strong>
-                    {metrics.durationSec > 0
-                      ? `${metrics.efficiencyPerMin.toFixed(1)} отвл./мин`
-                      : "—"}
-                  </strong>
-                </p>
-                <p>
-                  Среднее время до отвлечения:{" "}
-                  <strong>
-                    {metrics.durationSec > 0
-                      ? metrics.distractions === 0
-                        ? `${formatMmSs(metrics.durationSec)} (без отвлечений)`
-                        : formatMmSs(
-                            metrics.durationSec / (metrics.distractions + 1)
-                          )
-                      : "—"}
-                  </strong>
-                </p>
-              </div>
+            {lastUnsavedSession && !sessionActive && (
+              <button
+                type="button"
+                className="session-btn session-btn-secondary"
+                onClick={retrySave}
+                disabled={isSaving}
+              >
+                📤 Повторить сохранение
+              </button>
             )}
 
             {saveMessage && (
@@ -706,6 +661,39 @@ function TimerPage() {
               >
                 {saveMessage.text}
               </p>
+            )}
+          </div>
+
+          {/* результаты — справа от фигуры концентрации; появляются после нажатия «Стоп» */}
+          <div className="focus-actions">
+            {showResults && lastResult && (
+              <div className="session-results">
+                <h3>Результаты</h3>
+                <p>
+                  Длительность: <strong>{formatMmSs(lastResult.durationSec)}</strong>
+                </p>
+                <p>
+                  Отвлечения: <strong>{lastResult.distractions}</strong>
+                </p>
+                <p>
+                  Индекс эффективности:
+                  <strong>
+                    {lastResult.durationSec > 0
+                      ? ` ${lastResult.efficiencyPerMin.toFixed(1)} отвл./мин`
+                      : " —"}
+                  </strong>
+                </p>
+                <p>
+                  Среднее время до отвлечения:
+                  <strong>
+                    {lastResult.durationSec > 0
+                      ? lastResult.distractions === 0
+                        ? ` ${formatMmSs(lastResult.durationSec)} (без отвлечений)`
+                        : ` ${formatMmSs(lastResult.avgTimeToDistractionSec)}`
+                      : " —"}
+                  </strong>
+                </p>
+              </div>
             )}
           </div>
         </div>
